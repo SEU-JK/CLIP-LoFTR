@@ -379,13 +379,13 @@ class CLIPVisionTransformer(nn.Module):
     def init_weights(self, pretrained=None):
         pretrained = pretrained or self.pretrained
         if isinstance(pretrained, str):
-            checkpoint = torch.jit.load(pretrained, map_location='cpu').float().state_dict()
+            checkpoint = torch.load(pretrained)
 
             state_dict = {}
 
             for k in checkpoint.keys():
-                if k.startswith('visual.'):
-                    new_k = k.replace('visual.', '')
+                if k.startswith('backbone.'):
+                    new_k = k.replace('backbone.', '')
                     state_dict[new_k] = checkpoint[k]
 
             if 'positional_embedding' in state_dict.keys():
@@ -480,7 +480,10 @@ def Score(feature, kernal):
 
 if __name__ == '__main__':
     # model = CLIPResNetWithAttention(layers=[3, 4, 23, 3], output_dim=512, input_resolution=512, pretrained='pretrained\denseclip_res101.pth')
-    model = CLIPVisionTransformer(input_resolution=960, patch_size=16, width=768, layers=12, output_dim=512, drop_path_rate=0.1, pretrained='pretrained\denseclip_fpn_vit-b.pth', get_embeddings=True)
+    model = CLIPVisionTransformer(input_resolution=960, patch_size=16, width=768, layers=12, output_dim=512, drop_path_rate=0.1, pretrained='pretrained/ViT-B-16.pt', get_embeddings=True)
+    torch.save(model.state_dict(), 'segmentation/pretrained/denseclip_fpn_vit-b.pt')
+
+    model.init_weights()
     model = model.to('cuda')
     image1_path = 'segmentation\image3.jpg'
     image1 = load_and_preprocess_image(image1_path)
