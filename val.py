@@ -485,7 +485,7 @@ def load_and_preprocess_image(image_path):
 if __name__ == '__main__':
     model = CLIPResNetWithAttention(layers=[3, 4, 23, 3], output_dim=512, input_resolution=512, pretrained='segmentation\pretrained\denseclip_res101.pth')
     # model = CLIPVisionTransformer(input_resolution=960, patch_size=16, width=768, layers=12, output_dim=512, drop_path_rate=0.1, pretrained='segmentation\pretrained\denseclip_fpn_vit-b.pth', get_embeddings=True)
-    # torch.save(model.state_dict(),'segmentation\pretrained\VisionEncoder.pt')
+    
 
     model.init_weights()
     # model = model.to('cuda')
