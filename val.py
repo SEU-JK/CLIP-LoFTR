@@ -142,13 +142,14 @@ class CLIPResNetWithAttention(nn.Module):
     def init_weights(self, pretrained=None):
         pretrained = pretrained or self.pretrained
         if isinstance(pretrained, str):
-            checkpoint = torch.jit.load(pretrained, map_location='cpu').float().state_dict()
+            checkpoint = torch.load(pretrained)
+            checkpoint = checkpoint['state_dict']
 
             state_dict = {}
 
             for k in checkpoint.keys():
-                if k.startswith('visual.'):
-                    new_k = k.replace('visual.', '')
+                if k.startswith('backbone.'):
+                    new_k = k.replace('backbone.', '')
                     state_dict[new_k] = checkpoint[k]
 
                     if 'positional_embedding' in new_k:
@@ -200,15 +201,6 @@ class CLIPResNetWithAttention(nn.Module):
 
         return tuple(outs)
 
-def load_and_preprocess_image(image_path):
-    image = Image.open(image_path).convert('RGB')
-    transform = transforms.Compose([
-        transforms.Resize((960, 960)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-    input_image = transform(image).unsqueeze(0)  # 添加 batch 维度
-    return input_image
 
 class LayerNorm(nn.LayerNorm):
     """Subclass torch's LayerNorm to handle fp16."""
@@ -380,26 +372,29 @@ class CLIPVisionTransformer(nn.Module):
         pretrained = pretrained or self.pretrained
         if isinstance(pretrained, str):
             checkpoint = torch.load(pretrained)
+            checkpoint = checkpoint['state_dict']
 
             state_dict = {}
 
             for k in checkpoint.keys():
+                print(k)
                 if k.startswith('backbone.'):
                     new_k = k.replace('backbone.', '')
                     state_dict[new_k] = checkpoint[k]
+                    print(new_k)
 
             if 'positional_embedding' in state_dict.keys():
                 if self.positional_embedding.shape != state_dict['positional_embedding'].shape:
                     print(f'Resize the pos_embed shape from {state_dict["positional_embedding"].shape} to {self.positional_embedding.shape}')
                     cls_pos = state_dict["positional_embedding"][0:1, :]
-                    spatial_pos = F.interpolate(state_dict["positional_embedding"][1:,].reshape(1, 14, 14, 768).permute(0, 3, 1, 2), size=(self.spatial_size, self.spatial_size), mode='bilinear')
+                    spatial_pos = F.interpolate(state_dict["positional_embedding"][1:,].reshape(1, 40, 40, 768).permute(0, 3, 1, 2), size=(self.spatial_size, self.spatial_size), mode='bilinear')
                     spatial_pos = spatial_pos.reshape(768, self.spatial_size*self.spatial_size).permute(1, 0)
                     positional_embedding = torch.cat([cls_pos, spatial_pos], dim=0)
                     state_dict['positional_embedding'] = positional_embedding
                     assert self.positional_embedding.shape == state_dict['positional_embedding'].shape
 
             u, w = self.load_state_dict(state_dict, False)
-            print(u, w, 'are misaligned params in vision transformer')
+            print(u, w ,'are misaligned params in vision transformer')
 
     def forward(self, x: torch.Tensor):
         x = self.conv1(x)  # shape = [*, width, grid, grid]
@@ -444,7 +439,7 @@ class CLIPVisionTransformer(nn.Module):
 def load_image(image_path):
     image = Image.open(image_path).convert('RGB')
     transform = transforms.Compose([
-        # transforms.Resize((960, 960)),
+        transforms.Resize((480, 480)),
         transforms.ToTensor(),
     ])
     input_image = transform(image)
@@ -475,56 +470,71 @@ def Score(feature, kernal):
     i_max, i_min = numpy.unravel_index(max_index, score_map.shape)
     print((i_max, i_min))
     return score_map, i_max, i_min
-            
+
+def load_and_preprocess_image(image_path):
+    image = Image.open(image_path).convert('RGB')
+    transform = transforms.Compose([
+        transforms.Resize((480, 480)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    input_image = transform(image).unsqueeze(0)  # 添加 batch 维度
+    return input_image   
 
 
 if __name__ == '__main__':
-    # model = CLIPResNetWithAttention(layers=[3, 4, 23, 3], output_dim=512, input_resolution=512, pretrained='pretrained\denseclip_res101.pth')
-    model = CLIPVisionTransformer(input_resolution=960, patch_size=16, width=768, layers=12, output_dim=512, drop_path_rate=0.1, pretrained='pretrained/ViT-B-16.pt', get_embeddings=True)
-    torch.save(model.state_dict(), 'segmentation/pretrained/denseclip_fpn_vit-b.pt')
+    model = CLIPResNetWithAttention(layers=[3, 4, 23, 3], output_dim=512, input_resolution=512, pretrained='segmentation\pretrained\denseclip_res101.pth')
+    # model = CLIPVisionTransformer(input_resolution=960, patch_size=16, width=768, layers=12, output_dim=512, drop_path_rate=0.1, pretrained='segmentation\pretrained\denseclip_fpn_vit-b.pth', get_embeddings=True)
+    # torch.save(model.state_dict(),'segmentation\pretrained\VisionEncoder.pt')
 
     model.init_weights()
-    model = model.to('cuda')
-    image1_path = 'segmentation\image3.jpg'
-    image1 = load_and_preprocess_image(image1_path)
-    image1 = image1.to('cuda')
-    image2_path = 'segmentation\image1.jpg'
-    image2 = load_and_preprocess_image(image2_path)
-    image2 = image2.to('cuda')
-    Image1 = load_image(image1_path).permute(1,2,0)
-    Image2 = load_image(image2_path).permute(1,2,0)
+    # model = model.to('cuda')
+    # image1_path = 'segmentation\image1.jpg'
+    # image1 = load_and_preprocess_image(image1_path)
+    # image1 = image1.to('cuda')
+    # image2_path = 'segmentation\image2.jpg'
+    # image2 = load_and_preprocess_image(image2_path)
+    # image2 = image2.to('cuda')
+    # Image1 = load_image(image1_path).permute(1,2,0)
+    # Image2 = load_image(image2_path).permute(1,2,0)
     
-    # visualiaztion(Image1, 12, 4, 5, 0, 1)
+    # kernal_size = 6
+    # h = 2
+    # w = 3
     
-    model.eval()
+    # visualiaztion(Image1, kernal_size, h, h+1, w, w+1)
+    
+    # model.eval()
 
 
-    with torch.no_grad():
-        output1 = model(image1)
-        output2 = model(image2)
+    # with torch.no_grad():
+    #     output1 = model(image1)
+    #     output2 = model(image2)
     
-    _, feature1 = output1[4]
-    _, feature2 = output2[4]
+    # _, feature1 = output1[4]
+    # _, feature2 = output2[4]
     
-    print(feature1.size())
-    print(feature2.size())
+    # print(feature1.size())
+    # print(feature2.size())
     
-    feature1 = feature1.squeeze().permute(1,2,0)
-    feature2 = feature2.squeeze().permute(1,2,0)
-    
-    kernal = feature1[4*12:5*12, 0*12:1*12, :]
+    # feature1 = feature1.squeeze().permute(1,2,0)
+    # feature2 = feature2.squeeze().permute(1,2,0)
+
+    # kernal_size = 6
+    # h = 2
+    # w = 3
+    # kernal = feature1[2*kernal_size:3*kernal_size, 3*kernal_size:4*kernal_size, :]
 
 
-    map, i, j = Score(feature2, kernal)
-    print(map.size())
-    map = map.cpu()
-    plt.imshow(map, cmap='viridis')  
-    plt.colorbar()  
-    plt.show()
-    visualiaztion(Image2, 12, i, i+1, j, j+1)
+    # map, i, j = Score(feature2, kernal)
+    # print(map.size())
+    # map = map.cpu()
+    # plt.imshow(map, cmap='viridis')  
+    # plt.colorbar()  
+    # plt.show()
+    # visualiaztion(Image1, kernal_size, h, h+1, w, w+1)
+    # visualiaztion(Image2, kernal_size, i, i+1, j, j+1)
 
-    # print(feature1.squeeze().reshape(30,30,512).size())
-    # print(feature2.squeeze().reshape(30,30,512).size())
 
     
     
