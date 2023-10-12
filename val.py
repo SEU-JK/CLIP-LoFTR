@@ -439,14 +439,20 @@ class CLIPVisionTransformer(nn.Module):
 def load_image(image_path):
     image = Image.open(image_path).convert('RGB')
     transform = transforms.Compose([
-        transforms.Resize((480, 480)),
+        transforms.Resize((512, 512)),
         transforms.ToTensor(),
     ])
     input_image = transform(image)
     return input_image
 
-def visualiaztion(image, patch_size, i_start, i_end, j_start, j_end):
+def visualiaztion_vit(image, patch_size, i_start, i_end, j_start, j_end):
     patch_size = 16*patch_size
+    patch = image[i_start*patch_size:i_end*patch_size, j_start*patch_size:j_end*patch_size]
+    plt.imshow(patch)
+    plt.show()
+
+def visualiaztion_resnet(image, patch_size, i_start, i_end, j_start, j_end):
+    patch_size = 32*patch_size
     patch = image[i_start*patch_size:i_end*patch_size, j_start*patch_size:j_end*patch_size]
     plt.imshow(patch)
     plt.show()
@@ -474,7 +480,7 @@ def Score(feature, kernal):
 def load_and_preprocess_image(image_path):
     image = Image.open(image_path).convert('RGB')
     transform = transforms.Compose([
-        transforms.Resize((480, 480)),
+        transforms.Resize((512, 512)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
@@ -488,52 +494,48 @@ if __name__ == '__main__':
     
 
     model.init_weights()
-    # model = model.to('cuda')
-    # image1_path = 'segmentation\image1.jpg'
-    # image1 = load_and_preprocess_image(image1_path)
-    # image1 = image1.to('cuda')
-    # image2_path = 'segmentation\image2.jpg'
-    # image2 = load_and_preprocess_image(image2_path)
-    # image2 = image2.to('cuda')
-    # Image1 = load_image(image1_path).permute(1,2,0)
-    # Image2 = load_image(image2_path).permute(1,2,0)
+    model = model.to('cuda')
+    image1_path = 'segmentation\image1.jpg'
+    image1 = load_and_preprocess_image(image1_path)
+    image1 = image1.to('cuda')
+    image2_path = 'segmentation\image2.jpg'
+    image2 = load_and_preprocess_image(image2_path)
+    image2 = image2.to('cuda')
+    Image1 = load_image(image1_path).permute(1,2,0)
+    Image2 = load_image(image2_path).permute(1,2,0)
     
-    # kernal_size = 6
-    # h = 2
-    # w = 3
     
-    # visualiaztion(Image1, kernal_size, h, h+1, w, w+1)
-    
-    # model.eval()
+    model.eval()
 
 
-    # with torch.no_grad():
-    #     output1 = model(image1)
-    #     output2 = model(image2)
+    with torch.no_grad():
+        output1 = model(image1)
+        output2 = model(image2)
     
-    # _, feature1 = output1[4]
-    # _, feature2 = output2[4]
+    _, feature1 = output1[4]
+    _, feature2 = output2[4]
     
-    # print(feature1.size())
-    # print(feature2.size())
+    print(feature1.size())
+    print(feature2.size())
     
-    # feature1 = feature1.squeeze().permute(1,2,0)
-    # feature2 = feature2.squeeze().permute(1,2,0)
+    feature1 = feature1.squeeze().permute(1,2,0)       # VIT:(H/16,W/16,C) ResNet:(H/32,W/32.C)
+    feature2 = feature2.squeeze().permute(1,2,0)
+    
+    kernal_size = 4     
+    h = 2
+    w = 2
 
-    # kernal_size = 6
-    # h = 2
-    # w = 3
-    # kernal = feature1[2*kernal_size:3*kernal_size, 3*kernal_size:4*kernal_size, :]
+    kernal = feature1[h*kernal_size:(h+1)*kernal_size, w*kernal_size:(w+1)*kernal_size, :]
 
 
-    # map, i, j = Score(feature2, kernal)
-    # print(map.size())
-    # map = map.cpu()
-    # plt.imshow(map, cmap='viridis')  
-    # plt.colorbar()  
-    # plt.show()
-    # visualiaztion(Image1, kernal_size, h, h+1, w, w+1)
-    # visualiaztion(Image2, kernal_size, i, i+1, j, j+1)
+    map, i, j = Score(feature2, kernal)
+    print(map.size())
+    map = map.cpu()
+    plt.imshow(map, cmap='viridis')  
+    plt.colorbar()  
+    plt.show()
+    visualiaztion_resnet(Image1, kernal_size, h, h+1, w, w+1)
+    visualiaztion_resnet(Image2, kernal_size, i, i+1, j, j+1)
 
 
     
